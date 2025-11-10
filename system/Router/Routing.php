@@ -39,12 +39,26 @@ class Routing
     public function match()
     {
     }
-
-    public function compare()
+    public function compare($reserveRouteUrl)
     {
+        $reserveRouteUrl = trim($reserveRouteUrl, '/');
+        if ($reserveRouteUrl === '') {
+            return isset($this->current_route[0]) && trim($this->current_route[0], '/') === '';
+        }
+        $reserveRouteUrlArray = explode('/', $reserveRouteUrl);
+        if (count($this->current_route) !== count($reserveRouteUrlArray)) {
+            return false;
+        }
+        foreach ($reserveRouteUrlArray as $index => $segment) {
+            if (!isset($this->current_route[$index]) || $segment !== $this->current_route[$index]) {
+                return false;
+            }
+        }
+        return true;
     }
 
-    public function error404($message = "صفحه مورد نظر یافت نشد.")
+
+    public function error404()
     {
         http_response_code(404);
         include __DIR__ . DIRECTORY_SEPARATOR . 'View' .DIRECTORY_SEPARATOR .'404.php';

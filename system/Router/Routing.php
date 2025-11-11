@@ -1,6 +1,8 @@
 <?php
 
 namespace System\Router;
+use ReflectionException;
+use ReflectionMethod;
 
 class Routing
 {
@@ -45,10 +47,30 @@ class Routing
             $this->error404();
         }
 
-        require_once $path;
+        $class = "\App\Http\Controllers\\".$match["class"];
+        $object = new $class();
+        if(method_exists($object, $match['method']))
+        {
+            try {
+                $reflection = new ReflectionMethod($class, $match['method']);
+            } catch (ReflectionException $e) {
 
-        $controller = new $match['class'];
-        call_user_func_array([$controller, $match['method']], $this->values);
+            }
+            $parameterCount = $reflection->getNumberOfParameters();
+            if($parameterCount <= $this->values)
+            {
+                call_user_func_array(array($object, $match["method"]),$this->values);
+            }
+            else
+            {
+                $this->error404();
+            }
+        }
+        else
+        {
+            $this->error404();
+        }
+
     }
 
     public function match()
@@ -61,9 +83,9 @@ class Routing
                     'class' => $reserveRoute['class'],
                     'method' => $reserveRoute['method']
                 ];
-            } else {
-                $this->values = [];
             }
+
+            $this->values = [];
         }
 
         return [];

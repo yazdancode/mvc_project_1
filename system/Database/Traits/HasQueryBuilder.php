@@ -81,8 +81,29 @@ trait HasQueryBuilder
         $this->removeValues();
     }
 
-
-
-
-
+    protected function executeQuery():void
+    {
+        $query = $this->sql;
+        if (!empty($this->where)) {
+            $whereString = '';
+            foreach ($this->where as $index => $where) {
+                if ($index === 0) {
+                    $whereString .= $where['condition'];
+                } else {
+                    $whereString .= ' ' . $where['operator'] . ' ' . $where['condition'];
+                }
+            }
+            $query .= ' WHERE ' . $whereString;
+        }
+        if(!empty($this->orderby))
+        {
+            $query .= ' ORDER BY '. implode(',', $this->orderby);
+        }
+        if(!empty($this->limit))
+        {
+            $query .= ' LIMIT ' . $this->limit['from'] . ', ' . $this->limit['number'] . ' ';
+        }
+        $query .= ' ;';
+        echo $query. '<hr>/';
+    }
 }

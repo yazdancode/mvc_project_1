@@ -34,20 +34,55 @@ trait HasQueryBuilder
         $this->where[] = $array;
     }
 
-    public function resetWhere():void
+    protected function resetWhere():void
     {
         $this->where = [];
     }
 
-    public function setOrderBy($name , $expression):void
+    protected function setOrderBy($name , $expression):void
     {
         $this->orderby[] = $name . ' ' . $expression;
     }
 
-    public function resetOrderBy():void
+    protected function resetOrderBy():void
     {
         $this->orderby = [];
     }
+
+    protected function setLimit($from, $number):void
+    {
+        $this->limit['from']=(int) $from;
+        $this->limit['number']=(int) $number;
+    }
+
+    protected function resetLimit():void
+    {
+        unset($this->limit['from'], $this->limit['number']);
+    }
+
+    protected function addValue($attribute, $value):void
+    {
+        $this->values[$attribute] = $value;
+        $this->bindValues[] = $value;
+    }
+
+    protected function removeValues():void
+    {
+        $this->values = [];
+        $this->bindValues = [];
+    }
+
+    protected function resetQuery():void
+    {
+        $this->resetSql();
+        $this->resetWhere();
+        $this->resetOrderBy();
+        $this->resetLimit();
+        $this->removeValues();
+    }
+
+
+
 
 
 }

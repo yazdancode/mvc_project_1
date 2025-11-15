@@ -1,6 +1,7 @@
 <?php
 
 namespace System\Database\Traits;
+use PDOStatement;
 use System\Database\DBConnection\DBConnection;
 
 trait HasQueryBuilder
@@ -81,29 +82,68 @@ trait HasQueryBuilder
         $this->removeValues();
     }
 
-    protected function executeQuery():void
+    protected function executeQuery(): PDOStatement
     {
         $query = $this->sql;
         if (!empty($this->where)) {
             $whereString = '';
             foreach ($this->where as $index => $where) {
-                if ($index === 0) {
-                    $whereString .= $where['condition'];
-                } else {
-                    $whereString .= ' ' . $where['operator'] . ' ' . $where['condition'];
-                }
+                $whereString .= ($index === 0)
+                    ? $where['condition']
+                    : ' ' . $where['operator'] . ' ' . $where['condition'];
             }
             $query .= ' WHERE ' . $whereString;
         }
-        if(!empty($this->orderby))
-        {
-            $query .= ' ORDER BY '. implode(',', $this->orderby);
+        if (!empty($this->orderby)) {
+            $query .= ' ORDER BY ' . implode(',', $this->orderby);
         }
-        if(!empty($this->limit))
-        {
-            $query .= ' LIMIT ' . $this->limit['from'] . ', ' . $this->limit['number'] . ' ';
+        if (!empty($this->limit)) {
+            $query .= ' LIMIT ' . $this->limit['from'] . ', ' . $this->limit['number'];
+        }
+
+        $pdoInstance = DBConnection::getInstance();
+        $statement = $pdoInstance->prepare($query);
+        if (!empty($this->bindValues)) {
+            foreach ($this->bindValues as $index => $value) {
+                $statement->bindValue($index + 1, $value);
+            }
+        }
+        if (!empty($this->values)) {
+            $statement->execute($this->values);
+        } else {
+            $statement->execute();
+        }
+        return $statement;
+    }
+
+    protected function getCount(){
+
+        $query = '';
+        $query .= "SELECT COUNT(*) FROM $this->table";
+
+        if(!empty($this->where)){
+
+            $whereString = '';
+            foreach($this->where as $where){
+                $whereString === '' ?  $whereString .= $where['condition'] : $whereString .= ' '.$where['operator'].' '.$where['condition'];
+            }
+            $query .= ' WHERE '.$whereString;
         }
         $query .= ' ;';
-        echo $query. '<hr>/';
+
+        $pdoInstance = DBConnection::getInstance();
+        $statement = $pdoInstance->prepare($query);
+        if(count($this->bindValues) > count($this->values))
+        {
+            count($this->bindValues) > 0 ? $statement->execute($this->bindValues) : $statement->execute();
+        }
+        else
+        {
+            count($this->values) > 0 ? $statement->execute(array_values($this->values)) : $statement->execute();
+        }
+        return $statement->fetchColumn();
     }
+
+
+
 }

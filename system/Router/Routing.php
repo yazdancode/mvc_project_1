@@ -10,7 +10,7 @@ class Routing
     private $current_route;
     private $method_field;
     private $routes;
-    private $values = [];
+    private array $values = [];
 
     public function __construct()
     {
@@ -34,7 +34,7 @@ class Routing
         return $method_field;
     }
 
-    public function run()
+    public function run(): void
     {
         $match = $this->match();
         if (empty($match)) {
@@ -68,7 +68,7 @@ class Routing
 
     }
 
-    public function match()
+    public function match(): array
     {
         $reserveRoutes = isset($this->routes[$this->method_field]) ? $this->routes[$this->method_field] : [];
 
@@ -86,7 +86,7 @@ class Routing
         return [];
     }
 
-    public function compare($reserveRouteUrl)
+    public function compare($reserveRouteUrl): bool
     {
         $reserveRouteUrl = trim($reserveRouteUrl, '/');
 
@@ -111,7 +111,7 @@ class Routing
         return true;
     }
 
-    public function error404()
+    public function error404(): void
     {
         http_response_code(404);
         include __DIR__ . DIRECTORY_SEPARATOR . 'View' . DIRECTORY_SEPARATOR . '404.php';

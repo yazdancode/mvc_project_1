@@ -4,7 +4,7 @@ namespace System\Router\Web;
 
 class Route
 {
-    public static function get($uri, $controller, $name = null)
+    public static function get($uri, $controller, $name = null): void
     {
         $executeMethod = explode('@', $controller);
         $class = $executeMethod[0];
@@ -18,7 +18,7 @@ class Route
         ];
     }
 
-    public static function post($uri, $controller, $name = null)
+    public static function post($uri, $controller, $name = null): void
     {
         $executeMethod = explode('@', $controller);
         $class = $executeMethod[0];
@@ -32,7 +32,7 @@ class Route
         ];
     }
 
-    public static function put($uri, $controller, $name = null)
+    public static function put($uri, $controller, $name = null): void
     {
         $executeMethod = explode('@', $controller);
         $class = $executeMethod[0];
@@ -46,7 +46,7 @@ class Route
         ];
     }
 
-    public static function delete($uri, $controller, $name = null)
+    public static function delete($uri, $controller, $name = null): void
     {
         $executeMethod = explode('@', $controller);
         $class = $executeMethod[0];

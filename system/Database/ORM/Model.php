@@ -17,4 +17,14 @@ abstract class Model
     use HasQueryBuilder;
     use HasRelation;
     use HasSoftDelete;
+
+    protected string $table;
+    protected array $fillable = [];
+    protected array $hidden = [];
+    protected array $casts = [];
+    protected string $primaryKey = 'id';
+    protected string $createdAt = 'created_at';
+    protected string $updatedAt = 'updated_at';
+    protected ?string $deletedAt = null;
+    protected array $collection = [];
 }

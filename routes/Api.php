@@ -1,6 +1,6 @@
 <?php
-namespace System\Router\Api;
 
+namespace System\Router\Api;
 
 Api::get('', 'HomeController@index', 'index');
 Api::get('create', 'HomeController@create', 'create');

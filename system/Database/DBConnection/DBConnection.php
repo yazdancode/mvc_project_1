@@ -1,4 +1,5 @@
 <?php
+
 namespace System\Database\DBConnection;
 
 use PDO;
@@ -62,6 +63,10 @@ class DBConnection
         return $this->connection->lastInsertId();
     }
 
-    private function __clone() {}
-    private function __wakeup() {}
+    private function __clone()
+    {
+    }
+    private function __wakeup()
+    {
+    }
 }

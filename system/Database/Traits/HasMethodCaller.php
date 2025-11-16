@@ -1,8 +1,7 @@
 <?php
-namespace System\Database\Traits;
 
+namespace System\Database\Traits;
 
 class HasMethodCaller
 {
-
 }

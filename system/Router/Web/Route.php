@@ -1,4 +1,5 @@
 <?php
+
 namespace System\Router\Web;
 
 class Route

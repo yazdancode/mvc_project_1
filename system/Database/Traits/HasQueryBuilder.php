@@ -1,6 +1,7 @@
 <?php
 
 namespace System\Database\Traits;
+
 use PDOStatement;
 use System\Database\DBConnection\DBConnection;
 
@@ -10,70 +11,70 @@ trait HasQueryBuilder
     protected array $where = [];
     protected array $orderby = [];
 
-    private array $limit =[];
+    private array $limit = [];
 
-    private array $values =[];
+    private array $values = [];
 
-    private array $bindValues =[];
+    private array $bindValues = [];
 
-    protected function setSql($query):void
+    protected function setSql($query): void
     {
-        $this->sql =$query;
+        $this->sql = $query;
     }
-    protected function getSql():string
+    protected function getSql(): string
     {
         return $this->sql;
     }
-    protected function resetSql():void
+    protected function resetSql(): void
     {
-        $this->sql ='';
+        $this->sql = '';
     }
 
-    protected function setWhere($operator, $condition):void
+    protected function setWhere($operator, $condition): void
     {
-        $array = ['operator'=>$operator, 'condition'=>$condition];
+        $array = ['operator' => $operator, 'condition' => $condition];
         $this->where[] = $array;
     }
 
-    protected function resetWhere():void
+    protected function resetWhere(): void
     {
         $this->where = [];
     }
 
-    protected function setOrderBy($name , $expression):void
+    protected function setOrderBy($name, $expression): void
     {
         $this->orderby[] = $name . ' ' . $expression;
     }
 
-    protected function resetOrderBy():void
+    protected function resetOrderBy(): void
     {
         $this->orderby = [];
     }
 
-    protected function setLimit($from, $number):void
+    protected function setLimit($from, $number): void
     {
-        $this->limit['from']=(int) $from;
-        $this->limit['number']=(int) $number;
+        $this->limit['from'] = (int) $from;
+        $this->limit['number'] = (int) $number;
     }
 
-    protected function resetLimit():void
+    protected function resetLimit(): void
     {
         unset($this->limit['from'], $this->limit['number']);
     }
 
-    protected function addValue($attribute, $value):void
+    protected function addValue($attribute, $value): void
     {
         $this->values[$attribute] = $value;
         $this->bindValues[] = $value;
     }
 
-    protected function removeValues():void
+    protected function removeValues(): void
     {
         $this->values = [];
         $this->bindValues = [];
     }
 
-    protected function resetQuery():void
+    protected function resetQuery(): void
     {
         $this->resetSql();
         $this->resetWhere();
@@ -116,16 +117,17 @@ trait HasQueryBuilder
         return $statement;
     }
 
-    protected function getCount(){
+    protected function getCount()
+    {
 
         $query = '';
         $query .= "SELECT COUNT(*) FROM $this->table";
 
-        if(!empty($this->where)){
+        if (!empty($this->where)) {
 
             $whereString = '';
-            foreach($this->where as $where){
-                $whereString === '' ?  $whereString .= $where['condition'] : $whereString .= ' '.$where['operator'].' '.$where['condition'];
+            foreach ($this->where as $where) {
+                $whereString === '' ? $whereString .= $where['condition'] : $whereString .= ' '.$where['operator'].' '.$where['condition'];
             }
             $query .= ' WHERE '.$whereString;
         }
@@ -133,17 +135,11 @@ trait HasQueryBuilder
 
         $pdoInstance = DBConnection::getInstance();
         $statement = $pdoInstance->prepare($query);
-        if(count($this->bindValues) > count($this->values))
-        {
+        if (count($this->bindValues) > count($this->values)) {
             count($this->bindValues) > 0 ? $statement->execute($this->bindValues) : $statement->execute();
-        }
-        else
-        {
+        } else {
             count($this->values) > 0 ? $statement->execute(array_values($this->values)) : $statement->execute();
         }
         return $statement->fetchColumn();
     }
-
-
-
 }

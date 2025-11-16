@@ -1,6 +1,7 @@
 <?php
 
 namespace System\Router;
+
 use ReflectionException;
 use ReflectionMethod;
 
@@ -49,25 +50,19 @@ class Routing
 
         $class = "\App\Http\Controllers\\".$match["class"];
         $object = new $class();
-        if(method_exists($object, $match['method']))
-        {
+        if (method_exists($object, $match['method'])) {
             try {
                 $reflection = new ReflectionMethod($class, $match['method']);
             } catch (ReflectionException $e) {
 
             }
             $parameterCount = $reflection->getNumberOfParameters();
-            if($parameterCount <= $this->values)
-            {
-                call_user_func_array(array($object, $match["method"]),$this->values);
-            }
-            else
-            {
+            if ($parameterCount <= $this->values) {
+                call_user_func_array(array($object, $match["method"]), $this->values);
+            } else {
                 $this->error404();
             }
-        }
-        else
-        {
+        } else {
             $this->error404();
         }
 

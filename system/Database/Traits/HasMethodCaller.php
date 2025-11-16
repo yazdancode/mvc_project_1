@@ -2,6 +2,6 @@
 
 namespace System\Database\Traits;
 
-class HasMethodCaller
+trait HasMethodCaller
 {
 }

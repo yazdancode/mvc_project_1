@@ -16,7 +16,7 @@ trait HasAttributes
     protected function arrayToAttributes(array $array, $object = null): object
     {
         if (!$object) {
-            $className = get_called_class();
+            $className = static::class;
             $object = new $className();
         }
 
@@ -26,36 +26,110 @@ trait HasAttributes
             }
             $this->registerAttribute($object, $attribute, $value);
         }
+
         return $object;
     }
 
-    protected function arrayToObjects()
+    protected function arrayToObjects(array $array): void
     {
-
+        $collection = [];
+        foreach ($array as $value) {
+            $object = $this->arrayToAttributes($value);
+            $collection[] = $object;
+        }
+        $this->collection = $collection;
     }
 
-    protected function inHiddenAttributes()
+    protected function inHiddenAttributes($attribute): bool
     {
-
+        return in_array($attribute, $this->hidden ?? [], true);
     }
 
-    private function inCastsAttributes()
+    private function inCastsAttributes($attribute): bool
     {
-
+        return isset($this->casts[$attribute]);
     }
 
-    private function castDecodeValue()
+    /**
+     * Decode a value according to the cast type.
+     *
+     * @param string $attributeKey
+     * @param mixed $value
+     * @return mixed
+     */
+    private function castDecodeValue(string $attributeKey, $value)
     {
+        if (!isset($this->casts[$attributeKey])) {
+            return $value;
+        }
 
+        $type = $this->casts[$attributeKey];
+
+        if ($type === 'array' || $type === 'object') {
+            // empty values fallback
+            if ($value === null || $value === '') {
+                return $type === 'array' ? [] : null;
+            }
+
+            // use allowed_classes => false for safety (no PHP objects will be instantiated)
+            // suppress warnings if any and return original value on failure
+            $decoded = @unserialize($value, ['allowed_classes' => false]);
+
+            // unserialize returns false on failure but false can be a valid value (b:0;)
+            // handle that case: check serialized form for boolean false
+            if ($decoded === false && $value !== 'b:0;') {
+                return $value;
+            }
+
+            return $decoded;
+        }
+
+        // other cast types can be added here (json, int, bool, datetime...)
+        return $value;
     }
 
-    private function castEncodeValue()
+    /**
+     * Encode a value according to the cast type (for storage).
+     *
+     * @param string $attributeKey
+     * @param mixed $value
+     * @return mixed
+     */
+    private function castEncodeValue(string $attributeKey, $value)
     {
+        if (!isset($this->casts[$attributeKey])) {
+            return $value;
+        }
 
+        $type = $this->casts[$attributeKey];
+
+        if ($type === 'array' || $type === 'object') {
+            // ensure non-scalar values are serialized; scalars can still be serialized safely
+            return serialize($value);
+        }
+
+        // other cast types can be handled (json => json_encode, bool => (bool), etc.)
+        return $value;
     }
 
-    private function arrayToCastEncodeValue()
+    /**
+     * Apply casts (encode) to an associative array of values.
+     *
+     * @param array $values
+     * @return array
+     */
+    private function arrayToCastEncodeValue(array $values): array
     {
+        $newArray = [];
 
+        foreach ($values as $attribute => $value) {
+            if ($this->inCastsAttributes($attribute)) {
+                $newArray[$attribute] = $this->castEncodeValue($attribute, $value);
+            } else {
+                $newArray[$attribute] = $value;
+            }
+        }
+
+        return $newArray;
     }
 }

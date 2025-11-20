@@ -3,153 +3,117 @@
 namespace System\Database\Traits;
 
 use System\Database\DBConnection\DBConnection;
-use PDO;
+use System\Database\ORM\Model;
 
 trait HasCRUD
 {
-    /* ============================================================
-     | -------------  Core Attribute Helpers  ---------------------
-     ============================================================ */
-
-    protected function addCastValue(string $attribute, $value): void
+    protected function fill(): string
     {
-        if ($this->inCastsAttributes($attribute)) {
-            $value = $this->castEncodeValue($attribute, $value);
+        $fillArray = [];
+
+        foreach ($this->fillable as $attribute) {
+            if (property_exists($this, $attribute) && $this->$attribute !== null) {
+                $fillArray[] = $this->getAttributeName($attribute) . " = ?";
+                if ($this->inCastsAttributes($attribute)) {
+                    $this->addValue(
+                        $attribute,
+                        $this->castEncodeValue($attribute, $this->$attribute)
+                    );
+                } else {
+                    $this->addValue($attribute, $this->$attribute);
+                }
+            }
         }
-        $this->addValue($attribute, $value);
+        return implode(', ', $fillArray);
     }
-
-    protected function attributeIsFillable(string $attribute): bool
-    {
-        return in_array($attribute, $this->fillable)
-            && property_exists($this, $attribute)
-            && $this->$attribute !== null;
-    }
-
-    protected function buildSetString(array $attributes): string
-    {
-        $pairs = [];
-
-        foreach ($attributes as $name => $value) {
-            $pairs[] = "{$this->getAttributeName($name)} = ?";
-            $this->addCastValue($name, $value);
-        }
-
-        return implode(', ', $pairs);
-    }
-
-    /* ============================================================
-     | ----------------------  Create  ----------------------------
-     ============================================================ */
-
-    protected function createMethod(array $input)
-    {
-        $values = $this->arrayToCastEncodeValue($input);
-        $this->arrayToAttributes($values, $this);
-
-        return $this->saveMethod();
-    }
-
-    /* ============================================================
-     | ----------------------  Save (Insert / Update) -------------
-     ============================================================ */
 
     protected function saveMethod(): self
     {
-        $fillableValues = [];
+        $fillString = $this->fill();
 
-        foreach ($this->fillable as $attribute) {
-            if ($this->attributeIsFillable($attribute)) {
-                $fillableValues[$attribute] = $this->$attribute;
-            }
-        }
-
-        $setString = $this->buildSetString($fillableValues);
-
-        /* INSERT */
         if (!isset($this->{$this->primaryKey})) {
-            $sql = "INSERT INTO {$this->getTableName()} 
-                    SET $setString, `{$this->createdAt}` = NOW()";
-
-            $this->setSql($sql);
-        }
-        /* UPDATE */ else {
-            $sql = "UPDATE {$this->getTableName()} 
-                    SET $setString, `{$this->updatedAt}` = NOW()";
-            $this->setSql($sql);
-            $this->setWhere("AND", "{$this->primaryKey} = ?");
+            // INSERT
+            $this->setSql(
+                "INSERT INTO " . $this->getTableName() .
+                " SET $fillString, " . $this->getAttributeName($this->createdAt) . " = NOW()"
+            );
+        } else {
+            // UPDATE
+            $this->setSql(
+                "UPDATE " . $this->getTableName() .
+                " SET $fillString, " . $this->getAttributeName($this->updatedAt) . " = NOW()"
+            );
+            $this->setWhere("AND", $this->getAttributeName($this->primaryKey) . " = ?");
             $this->addValue($this->primaryKey, $this->{$this->primaryKey});
         }
 
         $this->executeQuery();
         $this->resetQuery();
-
-        // Insert → reload object with fresh DB values
         if (!isset($this->{$this->primaryKey})) {
             $lastId = DBConnection::getInstance()->lastInsertId();
-            $fresh = $this->findMethod($lastId);
+            $object = $this->findMethod($lastId);
 
-            if ($fresh) {
-                foreach (get_object_vars($fresh) as $key => $value) {
-                    $this->$key = $value;
+            if ($object) {
+                $defaultVars = get_class_vars(static::class);
+                $allVars = get_object_vars($object);
+                $differentVars = array_diff(array_keys($allVars), array_keys($defaultVars));
+
+                foreach ($differentVars as $attribute) {
+                    if ($this->inCastsAttributes($attribute)) {
+                        $this->registerAttribute($this, $attribute, $this->castEncodeValue($attribute, $object->$attribute));
+                    } else {
+                        $this->registerAttribute($this, $attribute, $object->$attribute);
+                    }
                 }
             }
         }
 
-        $this-> setAllowedMethods(['update', 'delete', 'save']);
+        $this->resetQuery();
+        $this->setAllowedMethods(['update', 'delete', 'save']);
         return $this;
     }
 
-    /* ============================================================
-     | ----------------------  Update  ----------------------------
-     ============================================================ */
-
-    protected function updateMethod(array $input)
-    {
-        $values = $this->arrayToCastEncodeValue($input);
-        $this->arrayToAttributes($values, $this);
-        return $this->saveMethod();
-    }
-
-
-    /* ============================================================
-     | ----------------------  Delete  ----------------------------
-     ============================================================ */
-
     protected function deleteMethod($id = null): bool
     {
-        $obj = $this;
+        $object = $this;
+        $this->resetQuery();
 
-        if ($id !== null) {
-            $obj = $this->findMethod($id);
+        if ($id) {
+            $object = $this->findMethod($id);
             $this->resetQuery();
         }
 
-        if (!$obj) {
+        if (!$object) {
             return false;
         }
 
-        $obj->setSql("DELETE FROM {$obj->getTableName()}");
-        $obj->setWhere("AND", "{$this->primaryKey} = ?");
-        $obj->addValue($this->primaryKey, $obj->{$this->primaryKey});
-
-        return (bool) $obj->executeQuery();
+        $object->setSql("DELETE FROM " . $object->getTableName());
+        $object->setWhere("AND", $this->getAttributeName($this->primaryKey) . " = ?");
+        $object->addValue($object->primaryKey, $object->{$object->primaryKey});
+        return (bool) $object->executeQuery();
     }
 
+    protected function allMethod(): array
+    {
+        $this->setSql("SELECT * FROM " . $this->getTableName());
+        $statement = $this->executeQuery();
+        $data = $statement->fetchAll();
 
-    /* ============================================================
-     | ----------------------  Read  ------------------------------
-     ============================================================ */
+        if ($data) {
+            $this->arrayToObjects($data);
+            return $this->collection;
+        }
+        return [];
+    }
 
     protected function findMethod($id): ?self
     {
-        $this->setSql("SELECT * FROM {$this->getTableName()}
-                        WHERE {$this->primaryKey} = ? LIMIT 1");
-
+        $this->setSql("SELECT * FROM " . $this->getTableName() .
+            " WHERE " . $this->getAttributeName($this->primaryKey) . " = ? LIMIT 1");
         $this->addValue($this->primaryKey, $id);
 
         $statement = $this->executeQuery();
-        $data = $statement->fetch(PDO::FETCH_ASSOC);
+        $data = $statement->fetch();
 
         $this->setAllowedMethods(['update', 'delete', 'save']);
 
@@ -157,95 +121,64 @@ trait HasCRUD
             $this->arrayToAttributes($data);
             return $this;
         }
+
         return null;
     }
 
-    protected function allMethod(): array
+    protected function whereMethod($attribute, $firstValue, $secondValue = null): self
     {
-        $this->setSql("SELECT * FROM {$this->getTableName()}");
-
-        $statement = $this->executeQuery();
-        $data = $statement->fetchAll(PDO::FETCH_ASSOC);
-
-        if ($data) {
-            $this->arrayToObjects($data);
-            return $this->collection;
+        if ($secondValue === null) {
+            $condition = $this->getAttributeName($attribute).' = ?';
+            $this->addValue($attribute, $firstValue);
+        } else {
+            $condition = $this->getAttributeName($attribute).' '.$firstValue.' ?';
+            $this->addValue($attribute, $secondValue);
         }
 
-        return [];
-    }
-
-
-    protected function getMethod(array $fields = []): array
-    {
-        if ($this->sql === '') {
-
-            $select = empty($fields)
-                ? "{$this->getTableName()}.*"
-                : implode(',', array_map(fn ($f) => $this->getAttributeName($f), $fields));
-
-            $this->setSql("SELECT $select FROM {$this->getTableName()}");
-        }
-
-        $stmt = $this->executeQuery();
-        $data = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-        if ($data) {
-            $this->arrayToObjects($data);
-            return $this->collection;
-        }
-
-        return [];
-    }
-
-
-    /* ============================================================
-     | ----------------------  Where Conditions -------------------
-     ============================================================ */
-
-    protected function baseWhere(string $operator, string $attribute, $value, ?string $sign = '='): self
-    {
-        $condition = "{$this->getAttributeName($attribute)} $sign ?";
+        $operator = 'AND';
         $this->setWhere($operator, $condition);
-        $this->addCastValue($attribute, $value);
-
-        $this->setAllowedMethods([
-            'where', 'whereOr', 'whereIn', 'whereNull', 'whereNotNull',
-            'limit', 'orderBy', 'get', 'paginate'
-        ]);
-
+        $this->setAllowedMethods(['where', 'whereOr', 'whereIn', 'whereNull', 'whereNotNull',
+        'limit', 'orderBy', 'get', 'paginate']);
         return $this;
     }
 
-    protected function whereMethod($attribute, $value): self
+    protected function whereOrMethod($attribute, $firstValue, $secondValue = null): self
     {
-        return $this->baseWhere("AND", $attribute, $value);
+        if ($secondValue === null) {
+            $condition = $this->getAttributeName($attribute).' = ?';
+            $this->addValue($attribute, $firstValue);
+        } else {
+            $condition = $this->getAttributeName($attribute).' '.$firstValue.' ?';
+            $this->addValue($attribute, $secondValue);
+        }
+
+        $operator = 'OR';
+        $this->setWhere($operator, $condition);
+        $this->setAllowedMethods(['where', 'whereOr', 'whereIn', 'whereNull', 'whereNotNull',
+            'limit', 'orderBy', 'get', 'paginate']);
+        return $this;
     }
 
-    protected function whereOrMethod($attribute, $value): self
-    {
-        return $this->baseWhere("OR", $attribute, $value);
-    }
 
     protected function whereNullMethod($attribute): self
     {
-        $this->setWhere("AND", "{$this->getAttributeName($attribute)} IS NULL");
 
-        $this->setAllowedMethods([
-            'where', 'whereOr', 'whereIn', 'whereNull', 'whereNotNull',
-            'limit', 'orderBy', 'get', 'paginate'
-        ]);
+        $condition = $this->getAttributeName($attribute).' IS NULL ';
+        $operator = 'AND';
+        $this->setWhere($operator, $condition);
+        $this->setAllowedMethods(['where', 'whereOr', 'whereIn', 'whereNull', 'whereNotNull',
+            'limit', 'orderBy', 'get', 'paginate']);
         return $this;
     }
 
     protected function whereNotNullMethod($attribute): self
     {
-        $this->setWhere("AND", "{$this->getAttributeName($attribute)} IS NOT NULL");
 
-        $this->setAllowedMethods([
-            'where', 'whereOr', 'whereIn', 'whereNull', 'whereNotNull',
-            'limit', 'orderBy', 'get', 'paginate'
-        ]);
+        $condition = $this->getAttributeName($attribute).' IS NOT NULL ';
+        $operator = 'AND';
+        $this->setWhere($operator, $condition);
+        $this->setAllowedMethods(['where', 'whereOr', 'whereIn', 'whereNull', 'whereNotNull',
+            'limit', 'orderBy', 'get', 'paginate']);
         return $this;
     }
 
@@ -254,14 +187,14 @@ trait HasCRUD
         if (empty($values)) {
             return $this;
         }
-
         $placeholders = implode(', ', array_fill(0, count($values), '?'));
-        $condition = "{$this->getAttributeName($attribute)} IN ($placeholders)";
 
-        $this->setWhere("AND", $condition);
+        $condition = $this->getAttributeName($attribute) . " IN ($placeholders)";
 
-        foreach ($values as $v) {
-            $this->addCastValue($attribute, $v);
+        $this->setWhere('AND', $condition);
+
+        foreach ($values as $value) {
+            $this->addValue($attribute, $value);
         }
 
         $this->setAllowedMethods([
@@ -272,54 +205,61 @@ trait HasCRUD
         return $this;
     }
 
-    /* ============================================================
-     | --------------------- Order / Limit ------------------------
-     ============================================================ */
-
-    protected function orderByMethod($attribute, $direction): self
+    protected function orderByMethod($attribute, $expression): self
     {
-        $this->setOrderBy($attribute, strtoupper($direction) === 'DESC' ? 'DESC' : 'ASC');
+        $this->setOrderBy($attribute, $expression);
         $this->setAllowedMethods(['limit', 'orderBy', 'get', 'paginate']);
         return $this;
     }
 
-    protected function limitMethod($offset, $number): self
+    protected function limitMethod($from, $number): self
     {
-        $this->setLimit((int)$offset, (int)$number);
+        $this->setLimit($from, $number);
         $this->setAllowedMethods(['limit', 'get', 'paginate']);
         return $this;
     }
 
+    protected function getMethod(array $array = []): array
+    {
+        if ($this->sql === '') {
+            if (empty($array)) {
+                $fields = $this->getTableName().'.*';
+            } else {
+                foreach ($array as $key => $field) {
+                    $array[$key] = $this->getAttributeName($field);
 
-    /* ============================================================
-     | ---------------------- Paginate ----------------------------
-     ============================================================ */
+                }
+                $fields = implode(',', $array);
+            }
+            $this->setSql("SELECT $fields FROM ".$this->getTableName());
+        }
+        $statement = $this->executeQuery();
+        $data = $statement->fetchAll();
+        if ($data) {
+            $this->arrayToObjects($data);
+            return $this->collection;
+        }
+        return [];
+    }
 
     protected function paginateMethod(int $perPage): array
     {
         $totalRows = $this->getCount();
-
-        $currentPage = $_GET['page'] ?? 1;
-        $currentPage = max((int)$currentPage, 1);
-
-        $totalPages = max((int)ceil($totalRows / $perPage), 1);
+        $currentPage = isset($_GET['page']) ? (int)$_GET['page'] : 1;
+        $totalPages = (int) ceil($totalRows / $perPage);
+        $currentPage = max($currentPage, 1);
         $currentPage = min($currentPage, $totalPages);
-
-        $offset = ($currentPage - 1) * $perPage;
-
-        $this->setLimit($offset, $perPage);
-
+        $currentRow = ($currentPage - 1) * $perPage;
+        $this->setLimit($currentRow, $perPage);
         if ($this->sql === '') {
-            $this->setSql("SELECT {$this->getTableName()}.* FROM {$this->getTableName()}");
+            $this->setSql("SELECT " . $this->getTableName() . ".* FROM " . $this->getTableName());
         }
-
-        $stmt = $this->executeQuery();
-        $data = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $statement = $this->executeQuery();
+        $data = $statement->fetchAll();
 
         if ($data) {
             $this->arrayToObjects($data);
         }
-
         return [
             'data'        => $this->collection ?? [],
             'totalRows'   => $totalRows,
@@ -329,5 +269,19 @@ trait HasCRUD
             'hasNext'     => $currentPage < $totalPages,
             'hasPrev'     => $currentPage > 1,
         ];
+    }
+
+    protected function createMethod($values): Model
+    {
+        $values = $this->arrayToCastEncodeValue($values);
+        $this->arrayToAttributes($values, $this);
+        return $this->saveMethod();
+    }
+
+    protected function updateMethod($values): Model
+    {
+        $values = $this->arrayToCastEncodeValue($values);
+        $this->arrayToAttributes($values, $this);
+        return $this->saveMethod();
     }
 }

@@ -7,7 +7,6 @@ use System\Database\Traits\HasCRUD;
 use System\Database\Traits\HasMethodCaller;
 use System\Database\Traits\HasQueryBuilder;
 use System\Database\Traits\HasRelation;
-use System\Database\Traits\HasSoftDelete;
 
 abstract class Model
 {
@@ -16,7 +15,6 @@ abstract class Model
     use HasMethodCaller;
     use HasQueryBuilder;
     use HasRelation;
-    use HasSoftDelete;
 
     protected string $table;
     protected array $fillable = [];
